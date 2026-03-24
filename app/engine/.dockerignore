@@ -1,0 +1,26 @@
+# Python artifacts
+**/__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.tar
+
+# Local environment and sensitive files
+.env
+prod.env
+*.pickle
+client_secret.json
+credentials.json
+
+# Local media and temp folders
+lambda/
+secrets/
+*.mp4
+*.mp3
+*.png
+*.jpg
+
+# Git and IDE configs
+.git
+.vscode
+.idea

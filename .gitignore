@@ -1,0 +1,19 @@
+# Terraform State & Folders
+**/.terraform/
+**/*.tfstate
+**/*.tfvars
+**/*.tfstate.backup
+**/.terraform.lock.hcl
+
+# Python / Apps
+**/__pycache__/
+**/*.pyc
+**/*.env
+**/secrets/
+**/*secret*.json
+**/*secrets*.json
+**/*credentials*.json
+**/*.pickle
+
+# Terraform variable files
+**/*.tfvars

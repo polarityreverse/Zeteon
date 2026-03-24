@@ -1,0 +1,29 @@
+# --- AI & LLM SDKs ---
+google-genai            # for: from google import genai
+langgraph               # for: from langgraph.graph import ...
+langgraph-checkpoint-aws # for: from langgraph_checkpoint_aws import ...
+
+# --- Google Services (Sheets & YouTube) ---
+gspread                 # for: import gspread
+google-auth-oauthlib    # for: from google_auth_oauthlib.flow import ...
+google-api-python-client # for: from googleapiclient.discovery import build
+
+# --- AWS & Async Infrastructure ---
+boto3                   # for: import boto3
+aioboto3                # for: import aioboto3
+botocore                # for: import botocore
+
+# --- Telegram Bot Framework ---
+python-telegram-bot[ext] # for: from telegram.ext import ...
+
+# --- JSON Handling & Robustness ---
+json-repair             # for: from json_repair import repair_json
+tenacity                # for: from tenacity import retry, ...
+
+# --- Networking ---
+requests                # for: import requests
+httpx                   # for: import httpx
+aiohttp                 # for: import aiohttp
+
+# --- Environment ---
+python-dotenv           # for: from dotenv import load_dotenv

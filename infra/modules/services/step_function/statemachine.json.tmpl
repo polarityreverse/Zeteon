@@ -1,0 +1,20 @@
+{
+  "Comment": "Zeteon Dispatcher: 60s Grace Period",
+  "StartAt": "GracePeriodWait",
+  "States": {
+    "GracePeriodWait": {
+      "Type": "Wait",
+      "Seconds": 60,
+      "Next": "RunValidatorLambda"
+    },
+    "RunValidatorLambda": {
+      "Type": "Task",
+      "Resource": "${validator_lambda_arn}",
+      "Parameters": {
+        "row_id.$": "$.row_id",
+        "topic.$": "$.topic"
+      },
+      "End": true
+    }
+  }
+}
