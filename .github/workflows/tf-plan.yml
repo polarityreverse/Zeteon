@@ -2,7 +2,7 @@ name: "Terraform Plan"
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
     paths:
       - 'infra/live/**' # Trigger if anything in the infra/live tree changes
 
