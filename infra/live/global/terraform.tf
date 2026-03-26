@@ -2,7 +2,7 @@ terraform {
 
   backend "s3" {
     bucket = "terraform-state-file-store-for-polarity"
-    key    = "zeteon/app_services/terraform.tfstate"
+    key    = "zeteon/global/terraform.tfstate"
     region = "us-east-1"
     use_lockfile = true
   }
