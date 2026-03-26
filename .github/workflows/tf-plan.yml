@@ -4,47 +4,29 @@ on:
   pull_request:
     branches: [ master ]
     paths:
-      - 'infra/live/**' # Trigger if anything in the infra/live tree changes
+      - 'infra/**'  # This is broader, so it MUST trigger if you change anything in infra
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  terraform-plan:
+  plan:
     runs-on: ubuntu-latest
-    strategy:
-      # This runs the plan for each folder in parallel!
-      matrix:
-        directory: [global, data_store, app_services]
-    
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      # --- This is the clever bit ---
-      - name: Check if files changed in this directory
-        id: check_changes
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            changed:
-              - 'infra/live/${{ matrix.directory }}/**'
+      - uses: actions/checkout@v4
 
       - name: Configure AWS Credentials
-        if: steps.check_changes.outputs.changed == 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::916194680580:role/Zeteon_GitHub_Actions_Role
           aws-region: us-east-1
 
       - name: Setup Terraform
-        if: steps.check_changes.outputs.changed == 'true'
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init & Plan
-        if: steps.check_changes.outputs.changed == 'true'
-        working-directory: ./infra/live/${{ matrix.directory }}
+        working-directory: ./infra/live/app_services
         run: |
           terraform init
           terraform plan -no-color
