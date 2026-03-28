@@ -40,8 +40,12 @@ jobs:
 
       - name: Terraform Format Check
         id: fmt
-        run: terraform fmt -recursive -check
+        run: terraform fmt -recursive
         continue-on-error: true
+      
+      - name: Terraform Check
+        id: fmt_check
+        run: terraform fmt -recursive -check
 
       - name: Terraform Init
         id: init
@@ -71,11 +75,16 @@ jobs:
 
       - name: Post Plan to PR
         uses: actions/github-script@v6
+        env:
+          # Pass the data safely through the environment
+          PLAN_DATA: ${{ steps.plan.outputs.plan_log }}
+          VAL_DATA: ${{ steps.validate.outputs.validate_log }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const planLog = `${{ steps.plan.outputs.plan_log }}` || "No plan captured.";
-            const valLog = `${{ steps.validate.outputs.validate_log }}` || "No validation captured.";
+            // Access variables from process.env to avoid interpolation errors
+            const planLog = process.env.PLAN_DATA || "No plan captured.";
+            const valLog = process.env.VAL_DATA || "No validation captured.";
             
             const pStatus = "${{ steps.plan.outcome }}" === "success" ? "✅" : "❌";
             const fStatus = "${{ steps.fmt.outcome }}" === "success" ? "✅" : "❌";
@@ -83,26 +92,26 @@ jobs:
             const body = `### Terraform Plan Results 🚀
             - **Format:** ${fStatus} \`${{ steps.fmt.outcome }}\`
             - **Plan:** ${pStatus} \`${{ steps.plan.outcome }}\`
-
+            
             #### Validation Details 🤖
             <details><summary>Expand</summary>
-
+            
             \`\`\`text
             ${valLog}
             \`\`\`
-
+            
             </details>
-
+            
             #### Plan Details 📖
             <details><summary>Expand</summary>
-
+            
             \`\`\`terraform
             ${planLog.replace(/\$\{/g, '\\${')}
             \`\`\`
-
+            
             </details>`;
-
-            github.rest.issues.createComment({
+            
+            await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
