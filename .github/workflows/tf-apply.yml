@@ -15,37 +15,44 @@ permissions:
 jobs:
   apply:
     runs-on: ubuntu-latest
+
     env:
       TF_VAR_BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
       TF_VAR_CHAT_ID: ${{ secrets.CHAT_ID }}
       TF_VAR_ECS_SECURITY_GROUP: ${{ secrets.ECS_SECURITY_GROUP }}
-      TF_VAR_ECS_SUBNET_ID: ${{ secrets.SUBNET_ID }}
+      TF_VAR_ECS_SUBNET_ID: ${{ secrets.ECS_SUBNET_ID }}
       TF_VAR_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
     defaults:
       run:
         working-directory: ./infra/live/app_services
 
     steps:
+      # 1. Setup Environment
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 1. Find the PR that triggered this merge
       - name: Find Current Pull Request
         uses: jwalton/gh-find-current-pr@v1
         id: findPr
         with:
           state: all
 
-      # 2. Inform PR that Apply is starting
+      # 2. Initial Notification
       - name: Inform on PR
         if: steps.findPr.outputs.number
-        uses: mshick/add-pr-comment@v1
+        uses: actions/github-script@v6
         with:
-          repo-token: ${{ secrets.CUSTOM_PAT }}
-          issue-number: ${{ steps.findPr.outputs.number }}
-          message: |
-            🚀 **Terraform Apply is starting** on merge to master...
+          github-token: ${{ secrets.CUSTOM_PAT }}
+          script: |
+            github.rest.issues.createComment({
+              issue_number: ${{ steps.findPr.outputs.number }},
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🚀 **Terraform Apply is starting** on merge to master...'
+            })
 
+      # 3. AWS & Terraform Execution
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -62,21 +69,35 @@ jobs:
         id: apply
         continue-on-error: true
         run: |
-          terraform apply -auto-approve -input=false 2>&1 | tee apply.txt
+          terraform apply -auto-approve -input=false -no-color 2>&1 | tee apply.txt
+          # Save output to Environment Variable for the script to use
+          echo "APPLY_OUTPUT<<EOF" >> $GITHUB_ENV
+          cat apply.txt >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
-      # 3. Post Results back to the found PR
+      # 4. Final Notification with Results
       - name: Post Result to PR
         if: steps.findPr.outputs.number
-        uses: mshick/add-pr-comment@v1
+        uses: actions/github-script@v6
         with:
-          repo-token: ${{ secrets.CUSTOM_PAT }}
-          issue-number: ${{ steps.findPr.outputs.number }}
-          message: |
-            ${{ steps.apply.outcome == 'success' && '✅ **Terraform Apply Succeeded**' || '❌ **Terraform Apply Failed**' }}
+          github-token: ${{ secrets.CUSTOM_PAT }}
+          script: |
+            const outcome = '${{ steps.apply.outcome }}' === 'success' ? '✅ **Terraform Apply Succeeded**' : '❌ **Terraform Apply Failed**';
+            const output = `### ${outcome}
             
             <details><summary>Show Apply Output</summary>
             
-            ```
-            ${{ steps.apply.outputs.stdout }}
-            ```
+            \`\`\`text
+            ${process.env.APPLY_OUTPUT}
+            \`\`\`
+            
             </details>
+            
+            *Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: ${{ steps.findPr.outputs.number }},
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
