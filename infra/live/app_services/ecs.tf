@@ -10,7 +10,7 @@ locals {
   container_environment_vars = {
     AWS_S3_BUCKET = data.aws_s3_bucket.media.id
     APP_ENV       = "production"
-    AWS_REGION    = data.aws_region.current.name
+    AWS_REGION    = data.aws_region.current.id
   }
 }
 
