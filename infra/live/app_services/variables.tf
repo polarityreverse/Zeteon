@@ -38,5 +38,3 @@ variable "GEMINI_API_KEY" {
   type      = string
   sensitive = true
 }
-
-# Triggering the CI pipeline
