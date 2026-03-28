@@ -9,6 +9,8 @@ on:
 permissions:
   id-token: write
   contents: read
+  pull-requests: write
+  issues: write
 
 jobs:
   apply:
@@ -17,24 +19,32 @@ jobs:
       TF_VAR_BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
       TF_VAR_CHAT_ID: ${{ secrets.CHAT_ID }}
       TF_VAR_ECS_SECURITY_GROUP: ${{ secrets.ECS_SECURITY_GROUP }}
-      TF_VAR_ECS_SUBNET_ID: ${{ secrets.ECS_SUBNET_ID }}
+      TF_VAR_ECS_SUBNET_ID: ${{ secrets.SUBNET_ID }}
       TF_VAR_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     defaults:
       run:
         working-directory: ./infra/live/app_services
-    
-    steps:    
-      - name: Inform on PR that Apply is Running
-        uses: mshick/add-pr-comment@v1
-        with:
-            repo-token: ${{ secrets.CUSTOM_PAT }}
-            repo-token-user-login: 'github-actions[bot]'
-            message: |
-                ***Running terraform apply***
-                Results will display here momentarily...
 
+    steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      # 1. Find the PR that triggered this merge
+      - name: Find Current Pull Request
+        uses: jwalton/gh-find-current-pr@v1
+        id: findPr
+        with:
+          state: all
+
+      # 2. Inform PR that Apply is starting
+      - name: Inform on PR
+        if: steps.findPr.outputs.number
+        uses: mshick/add-pr-comment@v1
+        with:
+          repo-token: ${{ secrets.CUSTOM_PAT }}
+          issue-number: ${{ steps.findPr.outputs.number }}
+          message: |
+            🚀 **Terraform Apply is starting** on merge to master...
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -46,71 +56,27 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
-        id: init
         run: terraform init
-    
-      - name: Teeraform Plan
-        id: plan
-        run: terraform plan -input=false -no-color -out=tfplan && terraform show -no-color tfplan
-
-      - name: Reformat Plan
-        if: steps.plan.outcome == 'success'
-        run: |
-            echo '${{ steps.plan.outputs.stdout || steps.plan.outputs.stderr }}' \
-            | sed -E 's/^([[:space:]]+)([-+])/\2\1/g' > plan.txt          
-    
-      - name: Put Plan in Env Var
-        if: steps.plan.outcome == 'success'
-        run: |
-            PLAN=$(cat plan.txt)
-            echo "PLAN<<EOF" >> $GITHUB_ENV
-            echo "$PLAN" >> $GITHUB_ENV
-            echo "EOF" >> $GITHUB_ENV 
 
       - name: Terraform Apply
         id: apply
         continue-on-error: true
-        if: steps.plan.outcome == 'success'
-        run: terraform apply -auto-approve -input=false
+        run: |
+          terraform apply -auto-approve -input=false 2>&1 | tee apply.txt
 
-      - name: Post Plan and Apply to GitHub PR
-        if: steps.plan.outcome == 'success' && steps.apply.outcome == 'success'
+      # 3. Post Results back to the found PR
+      - name: Post Result to PR
+        if: steps.findPr.outputs.number
         uses: mshick/add-pr-comment@v1
         with:
-            repo-token: ${{ secrets.CUSTOM_PAT }}
-            repo-token-user-login: 'github-actions[bot]'
-            message: |
-                ***Applying **Infra**:
-                <details><summary>Show Apply</summary>
-                ```
-                ${{ steps.apply.outputs.stdout }}
-                ```
-                </details>
-    
-      - name: Post Plan Failure
-        if: steps.plan.outcome == 'failure'
-        uses: mshick/add-pr-comment@v1
-        with:
-            repo-token: ${{ secrets.CUSTOM_PAT }}
-            repo-token-user-login: 'github-actions[bot]'
-            message: |
-                ***Plan failed for **Infra**:
-                <details><summary>Show Plan Fail</summary>
-                ```
-                ${{ steps.plan.outputs.stderr }}
-                ```
-                </details>
-
-      - name: Post Apply Failure
-        if: steps.apply.outcome == 'failure'
-        uses: mshick/add-pr-comment@v1
-        with:
-            repo-token: ${{ secrets.GITHUB_TOKEN }}
-            repo-token-user-login: 'github-actions[bot]'
-            message: |
-                ***Apply failed for **Infra**:
-                <details><summary>Show Apply Fail</summary>
-                ```
-                ${{ steps.apply.outputs.stderr }}
-                ```
-                </details>
+          repo-token: ${{ secrets.CUSTOM_PAT }}
+          issue-number: ${{ steps.findPr.outputs.number }}
+          message: |
+            ${{ steps.apply.outcome == 'success' && '✅ **Terraform Apply Succeeded**' || '❌ **Terraform Apply Failed**' }}
+            
+            <details><summary>Show Apply Output</summary>
+            
+            ```
+            ${{ steps.apply.outputs.stdout }}
+            ```
+            </details>
