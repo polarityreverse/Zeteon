@@ -38,5 +38,3 @@ variable "GEMINI_API_KEY" {
   type      = string
   sensitive = true
 }
-
-#Hey this CI workflow test number 2
