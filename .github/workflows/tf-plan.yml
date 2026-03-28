@@ -13,6 +13,12 @@ permissions:
 jobs:
   plan:
     runs-on: ubuntu-latest
+    env:
+      TF_VAR_BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      TF_VAR_CHAT_ID: ${{ secrets.CHAT_ID }}
+      TF_VAR_ECS_SECURITY_GROUP: ${{ secrets.ECS_SECURITY_GROUP }}
+      TF_VAR_ECS_SUBNET_ID: ${{ secrets.ECS_SUBNET_ID }}
+      TF_VAR_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     defaults:
       run:
         working-directory: ./infra/live/app_services
@@ -30,22 +36,70 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Format
-        run: terraform fmt -recursive
-
-      - name: Terraform Format Check
-        run: terraform fmt -check
+        id: fmt
+        run: terraform fmt -recursive -check
 
       - name: Terraform Init
+        id: init
         run: terraform init
 
       - name: Terraform Validate
+        id: validate
         run: terraform validate
 
       - name: Terraform Plan
+        id: plan
         run: terraform plan -input=false -no-color -out=tfplan && terraform show -no-color tfplan
+
+      - name: Add Plan Comment
+        if: steps.plan.outcome == 'success'
+        uses: actions/github-script@v6
         env:
-          TF_VAR_BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          TF_VAR_CHAT_ID: ${{ secrets.CHAT_ID }}
-          TF_VAR_ECS_SECURITY_GROUP: ${{ secrets.ECS_SECURITY_GROUP }}
-          TF_VAR_ECS_SUBNET_ID: ${{ secrets.ECS_SUBNET_ID }}
-          TF_VAR_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Validation 🤖${{ steps.validate.outputs.stdout }}
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+      
+            <details><summary>Show Plan</summary>
+          
+            \`\`\`${process.env.PLAN}\`\`\`
+          
+            </details>
+          
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+      - name: Post Plan Failure 
+        if: steps.plan.outcome == 'failure'
+        uses: actions/github-script@v6
+        env:
+          PLAN_FAIL: "terraform\n${{ steps.plan.outputs.stderr }}"
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `#### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+      
+            <details><summary>Show Plan Error</summary>
+          
+            \`\`\`${process.env.PLAN_FAIL}\`\`\`
+          
+            </details>
+          
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
