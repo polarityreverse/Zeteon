@@ -39,7 +39,7 @@ jobs:
         run: terraform init
 
       - name: Terraform Validate
-        run: terraform validate --no-color
+        run: terraform validate
 
       - name: Terraform Plan
         run: terraform plan -input=false -no-color -out=tfplan && terraform show -no-color tfplan
