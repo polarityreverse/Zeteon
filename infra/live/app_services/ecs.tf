@@ -88,7 +88,7 @@ module "worker_task_definition" {
   task_role_arn      = module.iam_ecs_task_role.role_arn
   image_uri          = "${data.aws_ecr_repository.engine.repository_url}:latest"
   log_group_name     = "/ecs/${local.family}"
-  aws_region         = data.aws_region.current.name
+  aws_region         = data.aws_region.current.id
 
   container_environment_vars = local.container_environment_vars
 }
