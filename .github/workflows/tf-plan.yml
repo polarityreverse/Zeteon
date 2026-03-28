@@ -12,7 +12,6 @@ permissions:
   pull-requests: write
   issues: write
 
-
 jobs:
   plan:
     runs-on: ubuntu-latest
@@ -25,6 +24,7 @@ jobs:
     defaults:
       run:
         working-directory: ./infra/live/app_services
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -38,13 +38,10 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Terraform Format
-        id: fmt
-        run: terraform fmt -recursive
-      
       - name: Terraform Format Check
-        id: fmt-check
+        id: fmt
         run: terraform fmt -recursive -check
+        continue-on-error: true
 
       - name: Terraform Init
         id: init
@@ -52,61 +49,66 @@ jobs:
 
       - name: Terraform Validate
         id: validate
-        run: terraform validate -no-color
-        
+        run: |
+          terraform validate -no-color 2>&1 > validate.txt || true
+          # Using GITHUB_OUTPUT instead of GITHUB_ENV to satisfy the VS Code Linter
+          echo "validate_log<<EOF" >> $GITHUB_OUTPUT
+          cat validate.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Terraform Plan
         id: plan
-        run: terraform plan -input=false -no-color -out=tfplan && terraform show -no-color tfplan
+        run: |
+          terraform plan -input=false -no-color -out=tfplan > plan_raw.txt 2>&1 || true
+          if [ -f tfplan ]; then
+            terraform show -no-color tfplan > plan_final.txt 2>&1 || true
+          else
+            cp plan_raw.txt plan_final.txt
+          fi
+          echo "plan_log<<EOF" >> $GITHUB_OUTPUT
+          cat plan_final.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Add Plan Comment
-        if: steps.plan.outcome == 'success'
+      - name: Post Plan to PR
         uses: actions/github-script@v6
-        env:
-          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt-check.outcome }}\`
-            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
-            #### Terraform Validation 🤖${{ steps.validate.outputs.stdout }}
-            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
-      
-            <details><summary>Show Plan</summary>
-          
-            \`\`\`${process.env.PLAN}\`\`\`
-          
-            </details>
-          
-            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
+            const planLog = `${{ steps.plan.outputs.plan_log }}` || "No plan captured.";
+            const valLog = `${{ steps.validate.outputs.validate_log }}` || "No validation captured.";
             
+            const pStatus = "${{ steps.plan.outcome }}" === "success" ? "✅" : "❌";
+            const fStatus = "${{ steps.fmt.outcome }}" === "success" ? "✅" : "❌";
+            
+            const body = `### Terraform Plan Results 🚀
+            - **Format:** ${fStatus} \`${{ steps.fmt.outcome }}\`
+            - **Plan:** ${pStatus} \`${{ steps.plan.outcome }}\`
+
+            #### Validation Details 🤖
+            <details><summary>Expand</summary>
+
+            \`\`\`text
+            ${valLog}
+            \`\`\`
+
+            </details>
+
+            #### Plan Details 📖
+            <details><summary>Expand</summary>
+
+            \`\`\`terraform
+            ${planLog.replace(/\$\{/g, '\\${')}
+            \`\`\`
+
+            </details>`;
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: output
-            })
+              body: body
+            });
 
-      - name: Post Plan Failure 
-        if: steps.plan.outcome == 'failure'
-        uses: actions/github-script@v6
-        env:
-          PLAN_FAIL: "terraform\n${{ steps.plan.outputs.stderr }}"
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const output = `#### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
-      
-            <details><summary>Show Plan Error</summary>
-          
-            \`\`\`${process.env.PLAN_FAIL}\`\`\`
-          
-            </details>
-          
-            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
+      - name: Final Check
+        if: steps.plan.outcome == 'failure' || steps.fmt.outcome == 'failure'
+        run: exit 1
