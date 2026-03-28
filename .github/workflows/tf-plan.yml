@@ -52,8 +52,8 @@ jobs:
 
       - name: Terraform Validate
         id: validate
-        run: terraform validate 2>&1 | sed -r "s/\x1b\[[0-9;]*m//g"
-
+        run: terraform validate -no-color
+        
       - name: Terraform Plan
         id: plan
         run: terraform plan -input=false -no-color -out=tfplan && terraform show -no-color tfplan
