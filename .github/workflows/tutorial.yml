@@ -27,8 +27,8 @@ jobs:
         steps:
             - name: Send greeting
               run: |
-                echo "Hello ${{ github.events.input.name }}"
-                echo "You live in ${{ github.events.input.city}}"
+                echo "Hello ${{ github.event.inputs.name }}"
+                echo "You live in ${{ github.event.inputs.city}}"
 
 
 
