@@ -128,9 +128,9 @@ async def script_generation(state: flowstate) -> flowstate:
             (block["text"] for block in response_json.get("content", []) if block.get("type") == "text"), 
             None
         )
-        
+
         if not script_text:
-            raise ValueError("No text block found in Claude response content.")
+            raise ValueError("No text block found in Claude response content...")
 
     except Exception as e:
         logger.error(f"Failed to get response for Row {row_idx}: {str(e)}")
