@@ -48,7 +48,16 @@ def call_claude_api(payload: Dict, headers: Dict) -> Dict:
         response.raise_for_status()
 
     response.raise_for_status()
-    return response.json()
+    data = response.json()
+
+    # ADDED: Check for empty content list (often due to safety filters)
+    if not data.get("content"):
+        stop_reason = data.get("stop_reason")
+        error_msg = f"Claude returned empty content. Stop Reason: {stop_reason}"
+        logger.error(error_msg)
+        raise ValueError(error_msg) # This triggers the @retry decorator
+    
+    return data
 
 # -------------------------------------------------------------------
 #  Script Generation Node
@@ -111,8 +120,22 @@ async def script_generation(state: flowstate) -> flowstate:
     # ---------------------------------------------------------------
     # 3. CALL CLAUDE
     # ---------------------------------------------------------------
-    response_json = call_claude_api(payload, headers)
-    script_text = response_json["content"][0]["text"]
+    try:
+        response_json = call_claude_api(payload, headers)
+        
+        # Safer extraction: Look for the first block that actually contains text
+        script_text = next(
+            (block["text"] for block in response_json.get("content", []) if block.get("type") == "text"), 
+            None
+        )
+
+        if not script_text:
+            raise ValueError("No text block found in Claude response content.")
+
+    except Exception as e:
+        logger.error(f"Failed to get response for Row {row_idx}: {str(e)}")
+        # Optionally update state to mark failure before raising
+        raise
 
     # ---------------------------------------------------------------
     # 4. EXTRACT JSON BLOCK
