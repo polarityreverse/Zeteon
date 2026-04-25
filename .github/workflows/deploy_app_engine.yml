@@ -34,7 +34,7 @@ jobs:
             - name: Build, Tag, and Push Docker Image
               run: |
                 # Build the Docker image
-                docker build -t zeteon-engine ./engine
+                docker build -t zeteon-engine ./app/engine
 
                 # Tag the image with the ECR registry
                 docker tag zeteon-engine:latest ${{ steps.login-ecr.outputs.registry }}/zeteon-engine:latest
