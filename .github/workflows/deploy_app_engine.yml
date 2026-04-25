@@ -5,7 +5,7 @@ on:
         branches:
             - master
         paths:
-            - 'app/dispatcher/**'
+            - 'app/engine/**'
 
 permissions:
     id-token: write
