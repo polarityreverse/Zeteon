@@ -1,7 +1,7 @@
 name: Deploy app engine docker image to AWS ECR
 
 on:
-    pull_request:
+    push:
         branches:
             - master
         paths:
