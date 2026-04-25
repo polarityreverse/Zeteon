@@ -1,0 +1,44 @@
+name: Deploy app engine docker image to AWS ECR
+
+on:
+    pull_request:
+        branches:
+            - master
+        paths:
+            - 'app/dispatcher/**'
+
+permissions:
+    id-token: write
+    contents: read
+    pull-requests: write
+    issues: write
+
+jobs:
+    build-and-deploy:
+        name: Build and Push Docker Image to ECR
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout Repository
+              uses: actions/checkout@v4
+            
+            - name: Configure AWS Credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                role-to-assume: arn:aws:iam::916194680580:role/Zeteon_GitHub_Actions_Role
+                aws-region: us-east-1
+            
+            - name: Login to Amazon ECR
+              id: login-ecr
+              uses: aws-actions/amazon-ecr-login@v2
+            
+            - name: Build, Tag, and Push Docker Image
+              run: |
+                # Build the Docker image
+                docker build -t zeteon-engine ./engine
+
+                # Tag the image with the ECR registry
+                docker tag zeteon-engine:latest ${{ steps.login-ecr.outputs.registry }}/zeteon-engine:latest
+
+                # Push the image to ECR
+                docker push ${{ steps.login-ecr.outputs.registry }}/zeteon-engine:latest
+
