@@ -26,16 +26,19 @@ jobs:
     
     Job3:
         runs-on: ubuntu-latest
-        if : ${{ github.event.inputs.Run-Job-3 == 'true' }}
-        needs: Job1
+        if : github.event.inputs.Run-Job-3 == 'true'
+        needs: 
+            - Job1
         steps:
             - name: Step 1
               run: echo "This is Job 3, which runs only if the input is true"
 
     Job4:
         runs-on: ubuntu-latest
-        needs: [Job2, Job3]
-        if: always()
+        needs: 
+            - Job2
+            - Job3
+        # if: always()
         steps:
             - name: Step 1
               run: echo "This is Job 4, which runs after Job 2 and Job 3 (if Job 3 was triggered)"
