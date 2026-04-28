@@ -25,7 +25,7 @@ module "iam_eventbridge_role" {
 resource "aws_cloudwatch_event_rule" "zeteon_daily_trigger" {
   name                = "Zeteon-Daily-Trigger"
   description         = "Triggers the Zeteon Scheduled Dispatcher daily"
-  schedule_expression = "cron(30 16 * * ? *)"
+  schedule_expression = "cron(00 14 * * ? *)"
 }
 
 # 4. Set the Lambda Target
