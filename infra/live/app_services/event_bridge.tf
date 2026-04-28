@@ -21,14 +21,14 @@ module "iam_eventbridge_role" {
   ]
 }
 
-# 3. Define the Scheduling Rule (16:30 UTC Daily)
+# 3. Define the Scheduling Rule (14:00 UTC Daily)
 resource "aws_cloudwatch_event_rule" "zeteon_daily_trigger" {
   name                = "Zeteon-Daily-Trigger"
   description         = "Triggers the Zeteon Scheduled Dispatcher daily"
   schedule_expression = "cron(00 14 * * ? *)"
 }
 
-# 4. Set the Lambda Target
+# 4. Set the Lambda Target for the EventBridge Rule at 14:00 UTC Daily
 resource "aws_cloudwatch_event_target" "zeteon_daily_target" {
   rule      = aws_cloudwatch_event_rule.zeteon_daily_trigger.name
   target_id = "Dispatcher-Scheduled"
@@ -37,5 +37,22 @@ resource "aws_cloudwatch_event_target" "zeteon_daily_target" {
   arn       = module.my_lambdas["Dispatcher-Scheduled"].lambda_function_arn
   
   # Attaching the execution role
+  role_arn  = module.iam_eventbridge_role.role_arn
+}
+
+
+# 5. Second EventBridge Rule (22:00 UTC)
+resource "aws_cloudwatch_event_rule" "zeteon_daily_night_trigger" {
+  name                = "Zeteon-Daily-Night-Trigger"
+  description         = "Triggers the Zeteon Scheduled Dispatcher nightly at 22:00 UTC"
+  schedule_expression = "cron(30 20 * * ? *)"
+}
+
+# Target for the second rule
+resource "aws_cloudwatch_event_target" "zeteon_daily_night_target" {
+  rule      = aws_cloudwatch_event_rule.zeteon_daily_night_trigger.name
+  target_id = "Dispatcher-Scheduled"
+
+  arn       = module.my_lambdas["Dispatcher-Scheduled"].lambda_function_arn
   role_arn  = module.iam_eventbridge_role.role_arn
 }
