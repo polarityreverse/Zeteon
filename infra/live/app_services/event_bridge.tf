@@ -44,7 +44,7 @@ resource "aws_cloudwatch_event_target" "zeteon_daily_target" {
 # 5. Second EventBridge Rule (22:00 UTC)
 resource "aws_cloudwatch_event_rule" "zeteon_daily_night_trigger" {
   name                = "Zeteon-Daily-Night-Trigger"
-  description         = "Triggers the Zeteon Scheduled Dispatcher nightly at 22:00 UTC"
+  description         = "Triggers the Zeteon Scheduled Dispatcher nightly at 20:30 UTC"
   schedule_expression = "cron(30 20 * * ? *)"
 }
 
