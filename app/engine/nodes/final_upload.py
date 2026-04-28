@@ -15,7 +15,7 @@ from utils.sheets import get_worksheet
 from utils.s3_helper import download_file_from_s3, check_s3_exists, load_prompt_from_s3
 from config import (
     OUTPUT_DIR, INSTA_ACCESS_TOKEN, INSTA_ACCOUNT_ID, 
-    GEMINI_API_KEY_1, VIDEO_METADATA_GENERATION_MODEL, SHEET_NAME
+    GEMINI_API_KEY_2, VIDEO_METADATA_GENERATION_MODEL, SHEET_NAME
 )
 
 # Set up production logging
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 # --- HELPER 1: Metadata Generator ---
 async def get_llm_metadata(topic):
-    client = genai.Client(api_key=GEMINI_API_KEY_1)
+    client = genai.Client(api_key=GEMINI_API_KEY_2)
     
     social_media_metadata_filename = f"social_media_metadata_prompt.txt"
     local_sc_metadata_prompt_path = f"{OUTPUT_DIR}/{social_media_metadata_filename}"
