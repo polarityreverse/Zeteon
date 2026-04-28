@@ -1,7 +1,9 @@
 import os
 import json
+import random
 import time
 import requests
+import asyncio
 import logging
 from googleapiclient.http import MediaFileUpload
 from google import genai
@@ -27,9 +29,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # --- HELPER 1: Metadata Generator ---
-async def get_llm_metadata(topic):
+async def get_llm_metadata(topic, max_retries=5):
     client = genai.Client(api_key=GEMINI_API_KEY_2)
-    
+
     social_media_metadata_filename = f"social_media_metadata_prompt.txt"
     local_sc_metadata_prompt_path = f"{OUTPUT_DIR}/{social_media_metadata_filename}"
     social_media_metadata_key = f"prompts/{social_media_metadata_filename}"
@@ -40,28 +42,49 @@ async def get_llm_metadata(topic):
                 f"### TOPIC:\n{topic}"
     )
 
-    try:
-        response = client.models.generate_content(
-            model=VIDEO_METADATA_GENERATION_MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.7)
-        )
+    for attempt in range(max_retries):
+        try:
+            # --- Gemini API call ---
+            response = await asyncio.to_thread(
+                client.models.generate_content,
+                model=VIDEO_METADATA_GENERATION_MODEL,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.7
+                )
+            )
 
-        text = response.text.strip()
-        if text.startswith("```"):
-            text = text.split("```")[1].replace("json", "").strip()
-            
-        data = json.loads(text)
-        
-        files_to_clean = [local_sc_metadata_prompt_path]
-        for temp_file in files_to_clean:
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
+            text = response.text.strip()
 
-        return data[0] if isinstance(data, list) else data
-    except Exception as e:
-        logger.error(f"❌ Video Metadata generation Error: {e}")
-        return None
+            if text.startswith("```"):
+                text = text.split("```")[1].replace("json", "").strip()
+
+            data = json.loads(text)
+
+            # Cleanup
+            files_to_clean = [local_sc_metadata_prompt_path]
+            for temp_file in files_to_clean:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+
+            return data[0] if isinstance(data, list) else data
+
+        except Exception as e:
+            err = str(e)
+
+            # --- Handle rate limits ---
+            if "429" in err or "rate" in err.lower():
+                wait = (2 ** attempt) + random.uniform(0, 0.5)
+                logger.warning(f"⚠️ Rate limit hit. Retrying in {wait:.2f}s...")
+                await asyncio.sleep(wait)
+                continue
+
+            logger.error(f"❌ Video Metadata generation Error: {e}")
+            return None
+
+    logger.error("❌ Max retries exceeded for metadata generation")
+    return None
 
 # --- HELPER 2: YouTube ---
 def upload_to_youtube(video_path, metadata, row_idx):
