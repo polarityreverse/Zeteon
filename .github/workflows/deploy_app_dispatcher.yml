@@ -38,10 +38,11 @@ jobs:
                     echo "$CREDENTIALS_JSON_B64" | base64 -d > app/dispatcher/credentials.json
                     echo "$CLIENT_SECRET_JSON_B64" | base64 -d > app/dispatcher/client_secret.json
                     echo "$TOKEN_PICKLE_B64" | base64 -d > app/dispatcher/token.pickle
-                    env:
-                        CREDENTIALS_JSON_B64: ${{ secrets.DISPATCHER_CREDENTIALS_JSON_B64 }}
-                        CLIENT_SECRET_JSON_B64: ${{ secrets.DISPATCHER_CLIENT_SECRETS_JSON_B64 }}
-                        TOKEN_PICKLE_B64: ${{ secrets.DISPATCHER_TOKEN_PICKLE_B64 }}
+
+              env:
+                CREDENTIALS_JSON_B64: ${{ secrets.DISPATCHER_CREDENTIALS_JSON_B64 }}
+                CLIENT_SECRET_JSON_B64: ${{ secrets.DISPATCHER_CLIENT_SECRETS_JSON_B64 }}
+                TOKEN_PICKLE_B64: ${{ secrets.DISPATCHER_TOKEN_PICKLE_B64 }}
 
             - name: Build, Tag, and Push Docker Image
               run: |
