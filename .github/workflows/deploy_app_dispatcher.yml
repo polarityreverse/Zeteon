@@ -31,6 +31,12 @@ jobs:
               id: login-ecr
               uses: aws-actions/amazon-ecr-login@v2
             
+            - name: Restore token.pickle
+              run: |
+                echo "$TOKEN_PICKLE_B64" | base64 -d > app/dispatcher/token.pickle
+              env:
+                TOKEN_PICKLE_B64: ${{ secrets.DISPATCHER_TOKEN_PICKLE_B64 }}
+
             - name: Build, Tag, and Push Docker Image
               run: |
                 # Build the Docker image
