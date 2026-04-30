@@ -14,6 +14,7 @@
 **/*secrets*.json
 **/*credentials*.json
 **/*.pickle
+**/* .b64
 
 # Terraform variable files
 **/*.tfvars
