@@ -40,7 +40,6 @@ ECS_SECURITY_GROUP = os.getenv("ECS_SECURITY_GROUP")
 IDEA_GENERATION_MODEL = "gemini-2.5-flash"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-
 # --- API ENDPOINTS ---
 IDEA_GENERATION_API_URL = (
     f"https://generativelanguage.googleapis.com/v1beta/models/"
