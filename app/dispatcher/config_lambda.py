@@ -37,7 +37,7 @@ ECS_TASK_DEFINITION = os.getenv("ECS_TASK_DEFINITION", "zeteon-worker-task")
 ECS_SUBNET_ID = os.getenv("ECS_SUBNET_ID")
 ECS_SECURITY_GROUP = os.getenv("ECS_SECURITY_GROUP") 
 
-IDEA_GENERATION_MODEL = "gemini-2.0-flash"
+IDEA_GENERATION_MODEL = "gemini-2.5-flash"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # --- API ENDPOINTS ---
