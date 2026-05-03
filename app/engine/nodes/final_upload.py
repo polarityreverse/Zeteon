@@ -145,42 +145,53 @@ def upload_to_insta(video_url, metadata):
             'access_token': INSTA_ACCESS_TOKEN
         }).json()
         
+        logger.info(f"📤 Insta /media response: {json.dumps(res, indent=2)}")
+
         container_id = res.get('id')
         if not container_id: 
-            logger.error(f"❌ Insta Container Error: {res}")
+            logger.error(f"❌ Insta Container Error: {json.dumps(res, indent=2)}")
             return "FAILED", None
 
         for i in range(45):
             time.sleep(20)
             status_res = requests.get(f"https://graph.facebook.com/v19.0/{container_id}", 
                                       params={'fields': 'status_code', 'access_token': INSTA_ACCESS_TOKEN}).json()
+            
+            logger.info(f"⏳ Insta Status {i+1}: {json.dumps(status_res, indent=2)}")
+            
             s_code = status_res.get('status_code')
             logger.info(f"⏳ Insta Upload attempt {i+1}: {s_code}")
             if s_code == 'FINISHED':
                 pub = requests.post(f"{base_url}/media_publish", data={'creation_id': container_id, 'access_token': INSTA_ACCESS_TOKEN}).json()
+                logger.info(f"📤 Insta /media_publish response: {json.dumps(pub, indent=2)}")
+                
                 media_id = pub.get("id")
                 if not media_id:
+                    logger.error(f"❌ Publish Error: {json.dumps(pub, indent=2)}")
                     return "FAILED", None
                 permalink_res = requests.get(f"https://graph.facebook.com/v19.0/{media_id}",
                                     params={
                                     "fields": "permalink",
                                     "access_token": INSTA_ACCESS_TOKEN
                                     }).json()
+                logger.info(f"🔗 Insta permalink response: {json.dumps(permalink_res, indent=2)}")
+
                 permalink = permalink_res.get("permalink")
                 if not permalink:
-                    logger.error(f"❌ Could not fetch permalink: {permalink_res}")
+                    logger.error(f"❌ Could not fetch permalink: {json.dumps(permalink_res, indent=2)}")
                     return "FAILED", None
 
                 return "SUCCESS", permalink
             
             if s_code == 'ERROR':
+                logger.error(f"❌ Insta Processing Error: {json.dumps(status_res, indent=2)}")
                 return "FAILED", None
             
         logger.error("❌ Insta processing timed out after 45 attempts")
         return "FAILED", None
 
     except Exception as e: 
-        logger.error(f"❌ Insta Upload Exception: {e}")
+        logger.error(f"❌ Insta Upload Exception: {e}", exc_info=True)
         return "ERROR", None
 
 # --- MAIN EXECUTION NODE ---
