@@ -155,7 +155,8 @@ def upload_to_insta(video_url, metadata):
         for i in range(45):
             time.sleep(20)
             status_res = requests.get(f"https://graph.facebook.com/v19.0/{container_id}", 
-                                      params={'fields': 'status_code', 'access_token': INSTA_ACCESS_TOKEN}).json()
+                                      params={'fields': 'status_code,status,error_message,error_code,error_subcode,issues,video_status,processing_errors',
+                                               'access_token': INSTA_ACCESS_TOKEN}).json()
             
             logger.info(f"⏳ Insta Status {i+1}: {json.dumps(status_res, indent=2)}")
             
