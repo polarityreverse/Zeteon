@@ -185,11 +185,7 @@ def upload_to_insta(video_url, metadata):
                 return "SUCCESS", permalink
             
             if s_code == 'ERROR':
-                error_res = requests.get(
-                    f"https://graph.facebook.com/v19.0/{container_id}",
-                    params={'fields': 'status_code,status,issues', 'access_token': INSTA_ACCESS_TOKEN
-                    }).json()
-                logger.error(f"❌ Insta Processing Error: {json.dumps(error_res, indent=2)}")
+                logger.error(f"❌ Insta Processing Error: {json.dumps(status_res, indent=2)}")
                 return "FAILED", None
             
         logger.error("❌ Insta processing timed out after 45 attempts")
