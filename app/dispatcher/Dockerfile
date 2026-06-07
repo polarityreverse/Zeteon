@@ -1,5 +1,7 @@
 FROM public.ecr.aws/lambda/python:3.11
 
+ENV PYTHONUNBUFFERED=1
+
 # Copy requirements from the local directory
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
