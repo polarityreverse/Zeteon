@@ -18,7 +18,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
 async def generate_single_image_async(
     http_session: aiohttp.ClientSession, 
     prompt: str, 
@@ -52,7 +51,7 @@ async def generate_single_image_async(
                         resp_data = await response.json()
                         image_b64 = None
 
-                        # 1. Parse /v1beta/interactions steps structure (model_output -> content -> image data)
+                        # 1. Primary Extraction: /v1beta/interactions format (model_output -> content -> image)
                         steps = resp_data.get("steps", [])
                         for step in steps:
                             if step.get("type") == "model_output":
@@ -64,13 +63,15 @@ async def generate_single_image_async(
                             if image_b64:
                                 break
 
-                        # 2. Fallbacks for other possible payload variations
+                        # 2. Robust Secondary Fallback (inspects all content objects regardless of step type)
                         if not image_b64:
                             for step in steps:
-                                for item in step.get("content", []):
-                                    if item.get("mime_type", "").startswith("image/") and "data" in item:
-                                        image_b64 = item["data"]
-                                        break
+                                contents = step.get("content", [])
+                                if isinstance(contents, list):
+                                    for item in contents:
+                                        if isinstance(item, dict) and item.get("mime_type", "").startswith("image/") and "data" in item:
+                                            image_b64 = item["data"]
+                                            break
                                 if image_b64:
                                     break
 
@@ -78,7 +79,7 @@ async def generate_single_image_async(
                             image_bytes = base64.b64decode(image_b64)
                             return await upload_bytes_to_s3(image_bytes, s3_image_key)
                         
-                        logger.error(f"⚠️ Key returned 200 but image data was missing in steps content.")
+                        logger.error(f"⚠️ {key_label} returned 200 but image data was missing from response payload.")
                     
                     elif response.status == 429:
                         wait_time = (2 ** attempt) * 8 + (random.uniform(0, 2))
