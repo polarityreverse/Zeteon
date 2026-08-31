@@ -4,7 +4,10 @@ ENV PYTHONUNBUFFERED=1
 
 # Copy requirements from the local directory
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+
+# Upgrade pip FIRST to avoid long resolution backtracking, then install dependencies
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy the specific Lambda scripts
 COPY config_lambda.py lambda_manual.py lambda_scheduled.py lambda_validator.py lambda_webhook.py ./
