@@ -8,7 +8,7 @@ import json
 from typing import Optional
 
 from utils.s3_helper import copy_s3_object, download_file_from_s3, check_s3_exists, upload_bytes_to_s3
-from config import IMAGEN_IMAGE_GENERATION_API_URL_1, IMAGEN_IMAGE_GENERATION_API_URL_2, AWS_S3_BUCKET, OUTPUT_DIR
+from config import AWS_S3_BUCKET, GEMINI_API_KEY_1, GEMINI_API_KEY_2, NANO_BANANA_MODEL, NANO_BANANA_IMAGE_GENERATION_API_URL, AWS_S3_BUCKET, OUTPUT_DIR
 
 # Set up production logging
 logging.basicConfig(
@@ -26,28 +26,45 @@ async def generate_single_image_async(
     retries_per_url: int = 3
 ) -> Optional[str]:
     payload = {
-        "instances": [{"prompt": prompt}],
-        "parameters": {
-            "sampleCount": 1,
-            "aspectRatio": "9:16",
-            "outputMimeType": "image/png"
+        "model": NANO_BANANA_MODEL,
+        "input": [{"type": "text", "text": prompt}],
+        "generation_config": {
+            "image_config": {
+                "aspect_ratio": "9:16"
+            }
         }
     }
     
-    urls_to_try = [IMAGEN_IMAGE_GENERATION_API_URL_1, IMAGEN_IMAGE_GENERATION_API_URL_2]
+    keys_to_try = [GEMINI_API_KEY_1, GEMINI_API_KEY_2]
 
-    for url_idx, target_url in enumerate(urls_to_try):
-        key_label = f"Key {url_idx + 1}"
+    for key_idx, api_key in enumerate(keys_to_try):
+        key_label = f"Key {key_idx + 1}"
+
+        headers = {
+            "x-goog-api-key": api_key,
+            "Content-Type": "application/json"
+        }
+
         for attempt in range(retries_per_url):
             try:
-                async with http_session.post(target_url, json=payload, timeout=90) as response:
+                async with http_session.post(NANO_BANANA_IMAGE_GENERATION_API_URL, headers=headers, json=payload, timeout=90) as response:
                     if response.status == 200:
                         resp_data = await response.json()
-                        image_b64 = resp_data["predictions"][0]["bytesBase64Encoded"]
-                        image_bytes = base64.b64decode(image_b64)
+                        image_b64 = None
+                        if "output_image" in resp_data:
+                            image_b64 = resp_data["output_image"]["data"]
+                        else:
+                            outputs = resp_data.get("outputs", []) or resp_data.get("steps", [{}])[-1].get("outputs", [])
+                            for output in outputs:
+                                if output.get("type") == "image":
+                                    image_b64 = output.get("data") or output.get("image", {}).get("data")
+                                    break
 
-                        s3_image_uri = await upload_bytes_to_s3(image_bytes, s3_image_key)
-                        return s3_image_uri
+                        if image_b64:
+                            image_bytes = base64.b64decode(image_b64)
+                            return await upload_bytes_to_s3(image_bytes, s3_image_key)
+                        
+                        logger.error(f"⚠️ {key_label} returned 200 but image data was missing.")
                     
                     elif response.status == 429:
                         wait_time = (2 ** attempt) * 8 + (random.uniform(0, 2))
@@ -64,8 +81,8 @@ async def generate_single_image_async(
                 logger.error(f"❌ {key_label} Async Request Failed: {str(e)}")
                 await asyncio.sleep(5)
         
-        if url_idx == 0:
-            logger.error(f"🚨 {key_label} exhausted. Switching to URL 2...")
+        if key_idx == 0:
+            logger.error(f"🚨 {key_label} exhausted. Switching to API KEY 2...")
 
     return None
 
@@ -151,6 +168,7 @@ async def image_generation(state: dict) -> dict:
                     if last_image_uri is None:
                         logger.error(f"❌ Critical failure: No image URI found, cannot apply fallback.")
                         final_image_uris_list.append(None)
+                        continue
                     
                     source_key = last_image_uri.split(".amazonaws.com")[-1].lstrip("/")
                     logger.warning(f"🔄 Invoking Fallback: Copying {source_key} to {current_dest_key}")

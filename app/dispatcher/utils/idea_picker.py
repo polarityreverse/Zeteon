@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import logging
 import random
@@ -25,7 +26,7 @@ logger = logging.getLogger("ZeteonPipeline")
 
 async def generate_3_ideas(uploaded_ideas: List) -> List:
     """LLM call to generate next viral science topics."""
-    performance_data = get_performance_context()
+    performance_data = await asyncio.to_thread(get_performance_context)
     
     idea_prompt_filename = f"idea_generation_prompt.txt"
     idea_prompt_key = f"prompts/{idea_prompt_filename}"
@@ -72,7 +73,7 @@ async def generate_3_ideas(uploaded_ideas: List) -> List:
                 logger.warning(f"Attempt {attempt+1}: JSON parsed but 'ideas' key missing or empty.")
             except Exception as e:
                 logger.warning(f"Topic generation attempt {attempt+1} failed: {e}")
-                time.sleep(2)
+                await asyncio.sleep(2)
 
             finally:
                 # Clean up the local temp file

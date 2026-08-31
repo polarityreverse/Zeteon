@@ -34,7 +34,7 @@ TELEGRAM_CHAT_ID = os.getenv("CHAT_ID")
 IDEA_GENERATION_MODEL = os.getenv("IDEA_GENERATION_MODEL")
 SCRIPT_IMAGE_PROMPT_MODEL = os.getenv("SCRIPT_IMAGE_PROMPT_MODEL")
 AUDIO_GEN_MODEL = os.getenv("AUDIO_GEN_MODEL")
-IMAGEN_MODEL = os.getenv("IMAGEN_MODEL")
+NANO_BANANA_MODEL = os.getenv("NANO_BANANA_MODEL")
 VIDEO_METADATA_GENERATION_MODEL = os.getenv("VIDEO_METADATA_GENERATION_MODEL")
 
 # --- AWS CONFIG ---
@@ -67,14 +67,8 @@ ELEVENLABS_VOICE_GENERATION_API_URL = (
     f"https://api.elevenlabs.io/v1/text-to-speech"
 )
 
-IMAGEN_IMAGE_GENERATION_API_URL_1 = (
-    f"https://generativelanguage.googleapis.com/v1beta/models/"
-    f"{IMAGEN_MODEL}:predict?key={GEMINI_API_KEY_1}"
-)
-
-IMAGEN_IMAGE_GENERATION_API_URL_2 = (
-    f"https://generativelanguage.googleapis.com/v1beta/models/"
-    f"{IMAGEN_MODEL}:predict?key={GEMINI_API_KEY_2}"
+NANO_BANANA_IMAGE_GENERATION_API_URL = (
+    f"https://generativelanguage.googleapis.com/v1beta/interactions"
 )
 
 
