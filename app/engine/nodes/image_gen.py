@@ -8,7 +8,7 @@ import json
 from typing import Optional
 
 from utils.s3_helper import copy_s3_object, download_file_from_s3, check_s3_exists, upload_bytes_to_s3
-from config import AWS_S3_BUCKET, GEMINI_API_KEY_1, GEMINI_API_KEY_2, NANO_BANANA_MODEL, NANO_BANANA_IMAGE_GENERATION_API_URL, AWS_S3_BUCKET, OUTPUT_DIR
+from config import AWS_S3_BUCKET, GEMINI_API_KEY_1, GEMINI_API_KEY_2, NANO_BANANA_MODEL, NANO_BANANA_IMAGE_GENERATION_API_URL, OUTPUT_DIR
 
 # Set up production logging
 logging.basicConfig(
@@ -17,6 +17,7 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S"
 )
 logger = logging.getLogger(__name__)
+
 
 async def generate_single_image_async(
     http_session: aiohttp.ClientSession, 
@@ -63,7 +64,7 @@ async def generate_single_image_async(
                             if image_b64:
                                 break
 
-                        # 2. Robust Secondary Fallback (inspects all content objects regardless of step type)
+                        # 2. Secondary Fallback (inspects all content objects regardless of step structure)
                         if not image_b64:
                             for step in steps:
                                 contents = step.get("content", [])
@@ -101,8 +102,9 @@ async def generate_single_image_async(
 
     return None
 
+
 async def image_generation(state: dict) -> dict:
-    """Node 3: Asnyc Image generation with S3 Cache check ..."""
+    """Node 3: Async Image generation with S3 Cache check and robust fallbacks."""
 
     row_id = state.get('row_index')
     s3_folder_prefix = state.get("s3_folder_prefix")
@@ -127,14 +129,13 @@ async def image_generation(state: dict) -> dict:
     subject = metadata.get("Visual_Continuity_Subject", "")
     style_suffix = f", featuring {subject}, set in {anchor}, photorealistic, 8k, extreme detail, cinematic lighting"
     
-    # COUNT THE IMAGES TO BE GENERATED
+    # Count total images needed
     total_images_needed = sum(2 if ("Image_Action_Prompt_A" in s and s.get("Image_Action_Prompt_B")) else 1 for s in scenes)
-    # 📝 ADD THE LOG HERE
     logger.info(f"🎨 Starting {total_images_needed} Asynchronous Image Generations for Row {row_id}...")
 
     state["s3_image_urls"] = []
+    semaphore = asyncio.Semaphore(2)
 
-    semaphore = asyncio.Semaphore(2) # will be changed to 3 in ECS
     async def throttled_gen(http_session, prompt, s3_image_key, suffix):
         async with semaphore:
             full_prompt = f"{prompt}{suffix}"
@@ -143,60 +144,67 @@ async def image_generation(state: dict) -> dict:
             return result
 
     async with aiohttp.ClientSession() as http_session:
-            tasks = []
-            task_dest_keys = [] # To keep track of failed image gen scenes
-            for i, scene in enumerate(scenes):
-                prompts_to_process = []
-                if "Image_Action_Prompt_A" in scene and scene.get("Image_Action_Prompt_B"):
-                    prompts_to_process = [
-                        (scene["Image_Action_Prompt_A"], f"Scene_{i+1}_A.png"),
-                        (scene["Image_Action_Prompt_B"], f"Scene_{i+1}_B.png")
-                    ]
+        tasks = []
+        task_dest_keys = []
+        
+        for i, scene in enumerate(scenes):
+            prompts_to_process = []
+            if "Image_Action_Prompt_A" in scene and scene.get("Image_Action_Prompt_B"):
+                prompts_to_process = [
+                    (scene["Image_Action_Prompt_A"], f"Scene_{i+1}_A.png"),
+                    (scene["Image_Action_Prompt_B"], f"Scene_{i+1}_B.png")
+                ]
+            else:
+                p = scene.get("Image_Action_Prompt") or scene.get("Video_Action_Prompt")
+                prompts_to_process = [(p, f"Scene_{i+1}.png")]
+
+            for prompt_text, filename in prompts_to_process:
+                s3_image_key = f"images/{s3_folder_prefix}/{filename}"
+                task_dest_keys.append(s3_image_key)
+
+                if await check_s3_exists(s3_image_key):
+                    logger.info(f"📦 S3 Cache Hit for Scene {i+1} at {s3_image_key}")
+                    tasks.append(asyncio.sleep(0, result=f"https://{AWS_S3_BUCKET}.s3.amazonaws.com/{s3_image_key}"))
                 else:
-                    p = scene.get("Image_Action_Prompt") or scene.get("Video_Action_Prompt")
-                    prompts_to_process = [(p, f"Scene_{i+1}.png")]
+                    task = asyncio.create_task(throttled_gen(http_session, prompt_text, s3_image_key, style_suffix))
+                    tasks.append(task)
 
-                for prompt_text, filename in prompts_to_process:
-                    s3_image_key = f"images/{s3_folder_prefix}/{filename}"
-                    task_dest_keys.append(s3_image_key)
+        s3_image_uris = await asyncio.gather(*tasks) if tasks else []
+        
+        final_image_uris_list = []
+        last_image_uri = None
 
-                    if await check_s3_exists(s3_image_key):
-                        logger.info(f"📦 S3 Cache Hit for Scene {i+1} at {s3_image_key}")
-                        tasks.append(asyncio.sleep(0, result=f"https://{AWS_S3_BUCKET}.s3.amazonaws.com/{s3_image_key}"))
-                    else:
-                        task = asyncio.create_task(throttled_gen(http_session, prompt_text, s3_image_key, style_suffix))
-                        tasks.append(task)
+        # Fallback processing: Ensure no None elements reach state["s3_image_urls"]
+        for i, uri in enumerate(s3_image_uris):
+            current_dest_key = task_dest_keys[i]
 
-            s3_image_uris = await asyncio.gather(*tasks) if tasks else []
-            
-            final_image_uris_list = []
-            last_image_uri = None
+            if uri:
+                final_image_uris_list.append(uri)
+                last_image_uri = uri
+            else:
+                # Search the entire batch for ANY valid URI if previous indices were None
+                if last_image_uri is None:
+                    valid_uris = [u for u in s3_image_uris if u]
+                    if valid_uris:
+                        last_image_uri = valid_uris[0]
 
-            # Fallback Logic for missing image for scenes ----
-            for i, uri in enumerate(s3_image_uris):
-                current_dest_key = task_dest_keys[i]
-
-                if uri:
-                    final_image_uris_list.append(uri)
-                    last_image_uri = uri
-                else:
-                    if last_image_uri is None:
-                        logger.error(f"❌ Critical failure: No image URI found, cannot apply fallback.")
-                        final_image_uris_list.append(None)
-                        continue
-                    
+                if last_image_uri:
                     source_key = last_image_uri.split(".amazonaws.com")[-1].lstrip("/")
                     logger.warning(f"🔄 Invoking Fallback: Copying {source_key} to {current_dest_key}")
                     fallback_uri = await copy_s3_object(source_key, current_dest_key)
                     final_image_uris_list.append(fallback_uri)
+                else:
+                    logger.critical(f"🚨 Complete batch failure for Row {row_id}: No valid image generated.")
+                    final_image_uris_list.append(None)
 
-            state["s3_image_urls"] = final_image_uris_list
+        state["s3_image_urls"] = final_image_uris_list
 
-    # State Finalization
-    state["isimagesgenerated"] = all(state["s3_image_urls"])
+    # Final validation checks
+    state["isimagesgenerated"] = all(bool(url) for url in state["s3_image_urls"]) and len(state["s3_image_urls"]) == total_images_needed
+    
     if state["isimagesgenerated"]:
         logger.info(f"✅ All {total_images_needed} Images generated for Row {row_id}.")
     else:
-        logger.error(f"❌ One or more images failed and couldn't be recovered.")
+        logger.error(f"❌ Image generation unrecoverable. One or more images failed completely.")
     
     return state
