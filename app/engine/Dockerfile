@@ -12,9 +12,12 @@ RUN apt-get update && apt-get install -y \
 # Set the working directory
 WORKDIR /app
 
-# Copy and install dependencies first
+# Copy dependencies first
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+
+# Upgrade pip FIRST to prevent resolution backtracking, then install requirements
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of your application code
 COPY . .

@@ -9,10 +9,7 @@ google-auth-oauthlib    # for: from google_auth_oauthlib.flow import ...
 google-api-python-client # for: from googleapiclient.discovery import build
 
 # --- AWS & Async Infrastructure ---
-aioboto3==13.3.0
-aiobotocore==2.18.0
-boto3==1.35.81
-botocore==1.35.81
+aioboto3
 
 # --- Telegram Bot Framework ---
 python-telegram-bot[ext] # for: from telegram.ext import ...
