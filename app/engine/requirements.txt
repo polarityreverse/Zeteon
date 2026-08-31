@@ -8,10 +8,11 @@ gspread                 # for: import gspread
 google-auth-oauthlib    # for: from google_auth_oauthlib.flow import ...
 google-api-python-client # for: from googleapiclient.discovery import build
 
-# --- AWS & Async Infrastructure ---
-boto3                   # for: import boto3
-aioboto3                # for: import aioboto3
-botocore                # for: import botocore
+# --- AWS & Async Infrastructure (Pinned to prevent dependency backtracking) ---
+botocore==1.35.91
+boto3==1.35.91
+aiobotocore==2.16.1
+aioboto3==13.4.0
 
 # --- Telegram Bot Framework ---
 python-telegram-bot[ext] # for: from telegram.ext import ...
