@@ -28,9 +28,9 @@ async def generate_3_ideas(uploaded_ideas: List) -> List:
     """LLM call to generate next viral science topics."""
     performance_data = await asyncio.to_thread(get_performance_context)
     
-    idea_prompt_filename = f"idea_generation_prompt.txt"
+    idea_prompt_filename = "idea_generation_prompt.txt"
     idea_prompt_key = f"prompts/{idea_prompt_filename}"
-    idea_gen_sys_instruction_filename = f"idea_system_instructions.txt"
+    idea_gen_sys_instruction_filename = "idea_system_instructions.txt"
     idea_gen_sys_instruction_key = f"prompts/{idea_gen_sys_instruction_filename}"
     local_idea_prompt_path = f"{OUTPUT_DIR}/{idea_prompt_filename}"
     local_idea_sys_ins_path = f"{OUTPUT_DIR}/{idea_gen_sys_instruction_filename}"
@@ -39,9 +39,9 @@ async def generate_3_ideas(uploaded_ideas: List) -> List:
     IDEA_SYSTEM_INSTRUCTIONS = await load_prompt_from_s3(idea_gen_sys_instruction_key, local_idea_sys_ins_path)
     
     prompt = (
-    f"{IDEA_PROMPT} \n"
-    f"### PERFORMANCE CONTEXT: {performance_data} \n"
-    f"### AVOID THESE TOPICS: {uploaded_ideas}"
+        f"{IDEA_PROMPT} \n"
+        f"### PERFORMANCE CONTEXT: {performance_data} \n"
+        f"### AVOID THESE TOPICS: {uploaded_ideas}"
     )
 
     payload = {
@@ -50,38 +50,58 @@ async def generate_3_ideas(uploaded_ideas: List) -> List:
         "generationConfig": {
             "responseMimeType": "application/json",
             "responseSchema": {
-                "type": "object",
-                "properties": {"ideas": {"type": "array", "items": {"type": "string"}}},
+                "type": "OBJECT",
+                "properties": {
+                    "ideas": {
+                        "type": "ARRAY", 
+                        "items": {"type": "STRING"}
+                    }
+                },
                 "required": ["ideas"]
             }
         }
     }
-    async with httpx.AsyncClient() as client:
-        for attempt in range(3):
-            try:
-                resp = await client.post(IDEA_GENERATION_API_URL, json=payload, timeout=60)
-                resp_json = resp.json()
-                raw_text = resp_json['candidates'][0]['content']['parts'][0]['text']
-                
-                # CLEANING: Remove markdown code blocks if present
-                clean_json = raw_text.replace("```json", "").replace("```", "").strip()
-                data = json.loads(clean_json)
-                ideas = data.get('ideas', [])
-                if ideas and isinstance(ideas, list):
-                    return ideas
 
-                logger.warning(f"Attempt {attempt+1}: JSON parsed but 'ideas' key missing or empty.")
-            except Exception as e:
-                logger.warning(f"Topic generation attempt {attempt+1} failed: {e}")
-                await asyncio.sleep(2)
+    try:
+        async with httpx.AsyncClient() as client:
+            for attempt in range(3):
+                try:
+                    resp = await client.post(IDEA_GENERATION_API_URL, json=payload, timeout=60)
+                    
+                    if resp.status_code != 200:
+                        logger.warning(f"Topic generation attempt {attempt+1} HTTP {resp.status_code}: {resp.text}")
+                        await asyncio.sleep(2)
+                        continue
 
-            finally:
-                # Clean up the local temp file
-                files_to_clean = [local_idea_sys_ins_path, local_idea_prompt_path]
-                for temp_file in files_to_clean:
-                    if os.path.exists(temp_file):
-                        os.remove(temp_file)    
-    return []
+                    resp_json = resp.json()
+                    candidates = resp_json.get('candidates', [])
+                    if not candidates:
+                        logger.warning(f"Attempt {attempt+1}: Response missing 'candidates' key.")
+                        await asyncio.sleep(2)
+                        continue
+
+                    raw_text = candidates[0]['content']['parts'][0]['text']
+                    clean_json = raw_text.replace("```json", "").replace("```", "").strip()
+                    data = json.loads(clean_json)
+                    ideas = data.get('ideas', [])
+
+                    if ideas and isinstance(ideas, list):
+                        return ideas
+
+                    logger.warning(f"Attempt {attempt+1}: JSON parsed but 'ideas' key missing or empty.")
+                except Exception as e:
+                    logger.warning(f"Topic generation attempt {attempt+1} failed: {e}")
+                    await asyncio.sleep(2)
+
+        return []
+    finally:
+        files_to_clean = [local_idea_sys_ins_path, local_idea_prompt_path]
+        for temp_file in files_to_clean:
+            if os.path.exists(temp_file):
+                try:
+                    os.remove(temp_file)
+                except Exception as cleanup_err:
+                    logger.warning(f"Failed to remove temp file {temp_file}: {cleanup_err}")
 
 # --- TOPIC MANAGEMENT ---
 async def get_video_idea():
