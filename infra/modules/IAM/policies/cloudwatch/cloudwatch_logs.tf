@@ -5,9 +5,8 @@ data "aws_iam_policy_document" "cloudwatch_logs_write" {
     actions = [
       "logs:CreateLogGroup"
     ]
-    # Standard format: arn:aws:logs:region:account:*
     resources = [
-      "${var.log_group_arn}:*"
+      "${var.log_group_arn}:log-group:*"
     ]
   }
 
@@ -18,8 +17,9 @@ data "aws_iam_policy_document" "cloudwatch_logs_write" {
       "logs:CreateLogStream",
       "logs:PutLogEvents"
     ]
-    # Standard format: arn:aws:logs:region:account:log-group:/aws/lambda/*:*
+    # Matches the exact pattern without leading slash: ...:log-group:aws/lambda/*:*
     resources = [
+      "${var.log_group_arn}:log-group:aws/lambda/*:*",
       "${var.log_group_arn}:log-group:/aws/lambda/*:*"
     ]
   }
