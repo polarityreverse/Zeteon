@@ -5,8 +5,9 @@ data "aws_iam_policy_document" "cloudwatch_logs_write" {
     actions = [
       "logs:CreateLogGroup"
     ]
+    # CreateLogGroup requires a broader resource scope or wildcard to auto-create groups
     resources = [
-      "${replace(var.log_group_arn, "/:\\*$/", "")}:log-group:*"
+      "${replace(var.log_group_arn, "/:\\*$/", "")}:*"
     ]
   }
 
@@ -19,7 +20,9 @@ data "aws_iam_policy_document" "cloudwatch_logs_write" {
     ]
     resources = [
       "${replace(var.log_group_arn, "/:\\*$/", "")}:log-group:aws/lambda/*:*",
-      "${replace(var.log_group_arn, "/:\\*$/", "")}:log-group:/aws/lambda/*:*"
+      "${replace(var.log_group_arn, "/:\\*$/", "")}:log-group:/aws/lambda/*:*",
+      "${replace(var.log_group_arn, "/:\\*$/", "")}:log-group:aws/lambda/*",
+      "${replace(var.log_group_arn, "/:\\*$/", "")}:log-group:/aws/lambda/*"
     ]
   }
 }
