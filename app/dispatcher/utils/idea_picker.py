@@ -7,6 +7,15 @@ import random
 import sys
 from typing import List
 
+import os
+import sys
+from pathlib import Path
+
+# Add 'app/dispatcher' to Python's search path for local testing
+DISPATCHER_DIR = Path(__file__).resolve().parent.parent
+if str(DISPATCHER_DIR) not in sys.path:
+    sys.path.insert(0, str(DISPATCHER_DIR))
+
 import httpx
 
 from config_lambda import IDEA_GENERATION_API_URL, OUTPUT_DIR
@@ -194,3 +203,15 @@ async def get_video_idea():
     except Exception as e:
         logger.error(f"Critical Error in get_video_idea: {str(e)}")
         return None
+
+# --- TEMPORARY LOCAL TESTING ENTRYPOINT ---
+if __name__ == "__main__":
+    async def main():
+        logger.info("🧪 Starting local test for get_video_idea()...")
+        result = await get_video_idea()
+        print("\n" + "=" * 50)
+        print("RESULT FROM get_video_idea():")
+        print(result)
+        print("=" * 50 + "\n")
+
+    asyncio.run(main())
